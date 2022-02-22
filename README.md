@@ -1,5 +1,18 @@
 # Metaflow Extension Framework
 
+## Warning
+
+**Anything described in this document is not guaranteed to be supported as Metaflow
+evolves. While Metaflow will support an extension system similar to this, the exact
+mechanism may evolve. Some of the possibilities offered through this mechanism also
+require you to depend directly on internal APIs (for example the interface of a
+decorator) which are not guaranteed to be stable or backward compatible like the user-facing
+APIs.**
+
+**Anything described here is therefore NOT meant for the casual user. If you choose to
+proceed, we would, however, be interested in your use case and any features that would make
+this more useful. Please open an issue with any feedback.**
+
 ## Context
 
 Metaflow is a growing project and, as more companies and partners adopt it, they may
@@ -8,13 +21,6 @@ with their own proprietary systems. This is what we do at Netflix and are theref
 to use and benefit from the OSS release of Metaflow while still having Metaflow tightly
 coupled with our execution environment. This document highlights the approach we use to
 achieve this.
-
-**Anything described in this document is not guaranteed to be supported as Metaflow
-evolves. Metaflow will not actively break anything described here but internal APIs,
-which this approach relies on, are not guaranteed to be stable or backward compatible
-like the user-facing APIs. This is not meant for the casual user. Please let us know of
-your use case if you choose to proceed.**
-
 
 ## User stories
 
@@ -109,32 +115,82 @@ part in the following subsections.
 
 
 ```
-metaflow_extensions
-├── __init__.py
+metaflow_extensions/org
 ├── config
-│   ├── __init__.py
-│   └── metaflow_config.py
+│   └── mfextinit_org.py
 ├── datatools
-│   └── __init__.py
+│   └── mfextinit_org.py
 ├── exceptions
 │   └── __init__.py
 ├── plugins
-│   ├── __init__.py
+│   ├── mfextinit_org.py
 │   ├── env_escape
 │   │   ├── configurations
 │   │   └── __init__.py
+│   ├── cards
+│   │   ├── mycard1
+│   │   └── mycard2
 │   ├── atlas_monitor
 │   │   ├── __init__.py
 │   │   ├── atlas_monitor.py
 │   │   └── spectator_mock.py
 │   ├── ...
 └── toplevel
-    └── __init__.py
+    └── mfextinit_org.py
 ```
 
+Of importance is the fact that the `metaflow_extensions` package is a namespace package
+(an implicit namespace package thus the lack of `__init__.py` file). The import mechanism
+will complain if this is not the case.
 
-Note that it is preferable to at least provide the `__init__.py` files as well as the
-`metaflow_config.py` file even if they are empty. 
+It is also required to "namespace" your extension under a unique name (your organization for
+example -- here we used "org"). Under "org", you can obviously do whatever you want and
+provide everything with one distribution/package but you also have the opportunity to use
+namespace packages there allowing for different groups within your organization to contribute
+to the extensions.
+
+In the structure above, you will notice files starting with `mfextinit_`; these are replacements
+for the `__init__.py` files. If you choose to not have namespace packages, all those files
+can be named `__init__.py` instead. If not, each `mfextinit_X.py` file must be unique (the system
+will complain if not).
+
+### Import mechanism
+
+This section gives a better understanding of the import mechanism present in `extensions_support.py`
+
+#### Distribution and non-distribution packages
+
+`metaflow_extensions` packages installed as a distribution are treated slightly differently because
+the import mechanism will import the distributions in an order that respects the dependencies. In other
+word, if you have a distribution X that provides `metaflow_extensions` as a top-level
+package and that it depends on distribution Y which also provides `metaflow_extensions`,
+anything in X will be loaded *after* things in Y.
+
+Non-distribution packages, for example things located in `PYTHONPATH` are always loaded
+last.
+
+#### General concept
+
+The import system looks for anything that provides `metaflow_extensions` and will verify
+that they respect the syntax for extension packages as described in this document and
+will then make them available to the other parts of metaflow.
+
+#### Packaging extensions
+
+By default, when metaflow needs to package itself, it will include all files in
+all extensions. You can, however, override this behavior by providing a file named
+`mfextmeta_X.py` right under `metaflow_extensions`. This file can include two values
+`include_suffixes` and `exclude_suffixes` which should be lists of file suffixes:
+- if `include_suffixes` is present, only those files ending in those suffixes are included;
+- if `exclude_suffixes` is present, all files except those ending in those suffixes are
+  included;
+- if both are present, `include_suffixes` is used.
+
+In the future, we may package only relevant extensions.
+
+#### Debugging
+To get a better understanding of what the import mechanism is doing, you can set the `METAFLOW_DEBUG_EXT`
+environment variable to get a run-down of what the import system is doing.
 
 
 #### setup.py 
@@ -151,8 +207,7 @@ setup(name='mycompany-metaflow',
      description='MyCompany Metaflow',
      author='Author',
      author_email='Email',
-     packages=find_packages(),
-     py_modules=['metaflow_extensions', ],
+     packages=find_namespace_packages(include=["metaflow_extensions.*"]),
      install_requires = [
        # Any dependency your extensions depend on
 
@@ -168,7 +223,7 @@ setup(name='mycompany-metaflow',
 The simplest overrides to provide are those that affect configuration values as provided
 in `metaflow_config.py`. You can override any of the values within the original
 `metaflow_config.py` and provide additional configuration options using the
-`metaflow_config.py` file in the `config` directory of the customization plugin. Any
+`mfextinit_X.py` file in the `config` directory of the customization plugin. Any
 value present will override (or, if not already present be imported into the main
 configuration file) anything in the base `metaflow_config.py`. Additionally, you can
 provide the DEBUG variable (it should be a list) to provide additional debugging
@@ -248,8 +303,8 @@ three integration points.
 
 ##### Adding an attribute
 
-Everything present in the `__init__.py` file in the sub-directory for
-`metaflow_extensions` will be imported into the respective metaflow module provided the
+Everything present in the `mfextinit_X.py` (or `__init__.py`) file in the sub-directory for
+`metaflow_extensions.orrg` will be imported into the respective metaflow module provided the
 name does not start with a double underscore. Modules present are also not imported
 except as detailed below. As a few examples, this is useful in the top-level directory
 as demonstrated below:
@@ -301,7 +356,8 @@ must make sure that it therefore exposes the same attributes and sub-modules exp
 from the overridden module. The overridden module is available as `&lt;name>._orig` so,
 in the conda example, if you provide a conda module in `metaflow_extensions/plugins`,
 accessing `metaflow.plugins.conda` will use the module you provide and the original
-module will be present as `metaflow.plugins.conda._orig`.
+module will be present as `metaflow.plugins.conda._orig` (sub modules of the original
+are also present as submodules of `_orig`).
 
 
 #### Additional top-level options

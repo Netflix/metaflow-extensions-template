@@ -18,12 +18,6 @@ with
 ```
 STEP_DECORATORS_DESC = [("mystepdecorator", ".my_decorators.MyStepDecorator")]
 ```
-and ending the file with:
-```
-process_plugins_description(globals())
-```
-
-This function can be imported from `metaflow.extension_support.plugins`
 
 In other words, you simply convert the import path to a string and add the name of the
 plugin (in this case `mystepdecorator`). Sidecars previously had names (they were

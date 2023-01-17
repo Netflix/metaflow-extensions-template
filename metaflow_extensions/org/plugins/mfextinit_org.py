@@ -3,8 +3,6 @@
 #            into one of the categories defined below
 ###
 
-from metaflow.extension_support.plugins import process_plugins_description
-
 ###
 # CONFIGURE: Define any additional CLI-level plugins. As examples, batch and step-functions
 #            are two such plugins.
@@ -73,10 +71,6 @@ TOGGLE_STEP_DECORATOR = [
 # EXAMPLE: This example sets a given set of decorators and will ignore all toggles and
 # user settings
 ENABLED_STEP_DECORATOR = ["batch", "airflow_internal"]
-
-
-# Do *NOT* forget this line
-process_plugins_description()
 
 ###
 # CONFIGURE: Similar to datatools, you can make visible under metaflow.plugins.* other

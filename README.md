@@ -135,6 +135,8 @@ metaflow_extensions/org
 │   │   ├── atlas_monitor.py
 │   │   └── spectator_mock.py
 │   ├── ...
+├── cmd
+│   ├── mfextinit_org.py
 └── toplevel
     └── mfextinit_org.py
 ```
@@ -304,17 +306,17 @@ three integration points.
 ##### Adding an attribute
 
 Everything present in the `mfextinit_X.py` (or `__init__.py`) file in the sub-directory for
-`metaflow_extensions.orrg` will be imported into the respective metaflow module provided the
+`metaflow_extensions.org` will be imported into the respective metaflow module provided the
 name does not start with a double underscore. Modules present are also not imported
 except as detailed below. As a few examples, this is useful in the top-level directory
 as demonstrated below:
 
 
 ```
-# Provide functions at the TL
+# Provide functions at the top-level
 from ..plugins.longboard.util import get_longboard_path
 
-# Alias certain functions/classes/objects at the TL
+# Alias certain functions/classes/objects at the top-level
 from ..plugins.myplugin.subpackage import SomeClass
 
 # Module aliasing
@@ -386,37 +388,53 @@ Metaflow will not have been loaded at this point.
 
 You can provide additional plugins and this is the main way to extend Metaflow. You
 should add all your plugins in the plugins directory and, in your `__init__.py` file,
-you need to provide the following variables and functions:
+you can provide zero or more of the following variables:
+* `FLOW_DECORATORS_DESC`: Flow decorators
+* `STEP_DECORATORS_DESC`: Step decorators
+* `CLIS_DESC`: Additional CL top-level commands
+* `ENVIRONMENTS_DESC`: Environments
+* `METADATA_PROVIDERS_DESC`: Metadata providers
+* `SIDECARS_DESC`, `LOGGING_SIDECARS_DESC`, `MONITOR_SIDECARS_DESC`: Sidecars (either
+  non logging and non monitoring or logging or monitoring
+* `AWS_CLIENT_PROVIDERS_DESC`: AWS S3 client providers (to get a client for S3 for
+  example)
+* `DATASTORES_DESC`: Datastore implementations
 
-
-
-* `get_plugin_cli()`: This function should return a list of CLIs that are to extend
-  Metaflow’s CLI. An example of such a CLI is batch.
-* `FLOW_DECORATORS`: This variable should contain a list of flow level decorators (ie:
-  classes that extend `FlowDecorator`). Flow-level decorators are distinguished based on
-  their `name` attribute.
-* `STEP_DECORATORS`: This variable should contain a list of step level decorators (ie:
-  classes that extend `StepDecorator`). Step-level decorators are distinguished based on
-  their `name` attribute.
-* `ENVIRONMENTS`: This variable should contain a list of environments (ie: classes that
-  extend `MetaflowEnvironment`). Environments are distinguished based on their `TYPE`
-  attribute.
-* `METADATA_PROVIDERS`: This variable should contain a list of metadata providers (ie:
-  classes that extend `MetadataProvider`). Metadata providers are distinguished based on
-  their `TYPE` attribute.
-* `SIDECARS`, `LOGGING_SIDECARS` and `MONITOR_SIDECARS`: These variables should contain
-  dictionaries of sidecars (either logging, monitoring or neither). Note that you do not
-  need to add the logging or monitoring sidecars explicitly to the `SIDECARS` variable.
-* `AWS_CLIENT_PROVIDERS`: This variable should contain a list of classes implementing a
-  static method `get_client` just like `Boto3ClientProvider`. Client providers are
-  distinguished based on their `name` attribute.
-* (coming soon) `DATASTORES`: in the convergence branch, the lower level of the
-  datastore (so the part that talks to S3 or the part that talks to the filesystem) will
-  be moved out to the plugins directory in the same way the metadata providers were
-  moved out.
+In all the cases above, each variable is a `List[Tuple[str, str]]`, the tuple contains:
+* as a first element, the name of the plugin
+* as a second element, the path to the class implementing the plugin. The path can
+  be a relative path.
 
 When loading the customization plugin, Metaflow will override (or extend) the plugins it
 has based on the ones provided by the customization framework. A plugin is overridden if
 it is equal based on the distinguishing feature (for example, if Metaflow provides a
 step plugin with the `name` attribute set to `foobar` and the customization plugin does
 too, Metaflow’s plugin will get overridden).
+
+##### Selecting plugins/commands
+You can also select the plugins that are visible to users of your extension. There are
+two ways to configure which plugins are visible. We will use the example of step-decorators
+but the same concept applies to all the plugins as well as the commands.
+
+By default, all step-decorators defined by Metaflow and in any of the installed extensions
+are enabled. Two variables can control this however:
+* `ENABLED_STEP_DECORATOR` which is a list of enabled step-decorators
+* `TOGGLE_STEP_DECORATOR` which is a list of toggled step-decorators where `+<step-decorator>`
+  enables a decorator and `-<step-decorator>` disables it.
+
+The `ENABLED_STEP_DECORATOR` can be set:
+* by the user using an environment variable `METAFLOW_ENABLED_STEP_DECORATOR` or
+  a configuration
+* by any extension installed.
+
+The latest value takes precedence (ie: extensions override what the users set and the
+later loaded extension overrides previously loaded ones).
+
+The `TOGGLE_STEP_DECORATOR` can be set by any extension and it forms an append list (so
+all extensions can contribute to the list). It should be set in the same file as
+`STEP_DECORATORS_DESC` for example.
+
+The final set of step-decorators that are enabled is determined as follows:
+* if `ENABLED_STEP_DECORATOR` is set: use that list
+* if not, start with the list of all step-decorators (from core Metaflow and
+  any extension) and apply the toggle rules previously described.

@@ -7,11 +7,17 @@
 #            The entries below are simple examples
 ###
 
+from metaflow.metaflow_config_funcs import from_conf
+
 # EXAMPLE: Force a specific datastore
 DEFAULT_DATASTORE = "s3"
+
 # EXAMPLE: Configure the bucket to use
 DATASTORE_SYSROOT_S3 = "s3://mycompany/mymetaflowbucket"
 
+# EXAMPLE: use from_conf to correctly allow values from the environment/configuration file
+
+DEFAULT_METADATA = from_conf("DEFAULT_METADATA", "mymetadata") 
 
 ###
 # CONFIGURE: You can also specify additional debugging options that are
@@ -22,7 +28,7 @@ DEBUG_OPTIONS = ["myspecialdebug"]
 ###
 # CONFIGURE: You can override any conda dependencies when a Conda environment is created
 ###
-def get_pinned_conda_libs(python_version):
+def get_pinned_conda_libs(python_version, datastore_type):
     return {
         "click>=8.0.0",
         "requests=2.24.0"
